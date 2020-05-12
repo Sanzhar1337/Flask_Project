@@ -1,6 +1,6 @@
 body{
-	background: #fafafa;
-	color: #333333;
+	background: #131313;
+	color: #33333;
 	margin-top: 5rem;
 }
 
@@ -25,7 +25,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .content-section{
-	background:#ffffff;
+	background:#696969;
 	padding:10px 20px;
 	border:1px solid #dddddd;
 	border-radius:3px;
@@ -230,5 +230,6 @@ input[type=text]:focus{
 #get-username {
     display: none !important;
 }
+
 
 

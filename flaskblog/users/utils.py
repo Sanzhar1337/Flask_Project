@@ -22,12 +22,12 @@ def save_picture(form_picture):
 
 def send_reset_email(user):
     token = user.get_reset_token()
-    msg = Message('Запрос сброса пароля',
-                  sender='noreply@demo.com',
+    msg = Message('Password Reset Request',
+                  sender='sanzharbazarhanov@gmail.com',
                   recipients=[user.email])
-    msg.body = f'''Чтобы сбросить пароль, перейдите по следующей ссылке:
+    msg.body = f'''To reset your password, click on the following link:
 {url_for('users.reset_token', token=token, _external=True)}
 
-Если вы не сделали этот запрос, просто проигнорируйте это письмо, и никакие изменения не будут внесены.
+If you did not make this request, just ignore this letter and no changes will be made.
 '''
     mail.send(msg)

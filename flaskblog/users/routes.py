@@ -1,12 +1,17 @@
+import os
+import time
 from flask import render_template, url_for, flash, redirect, request, Blueprint
 from flask_login import login_user, current_user, logout_user, login_required
-from flaskblog import db, bcrypt
+from flaskblog import db, bcrypt, socketio
 from flaskblog.models import User, Post
 from flaskblog.users.forms import (RegistrationForm, LoginForm, UpdateAccountForm,
                                    RequestResetForm, ResetPasswordForm)
 from flaskblog.users.utils import save_picture, send_reset_email
+from flask_socketio import SocketIO, join_room, leave_room, send
 
 users = Blueprint('users', __name__)
+ROOMS = ["lounge", "news", "games", "coding"]
+
 
 
 @users.route("/register", methods=['GET', 'POST'])
@@ -19,7 +24,7 @@ def register():
         user = User(username=form.username.data, email=form.email.data, password=hashed_password)
         db.session.add(user)
         db.session.commit()
-        flash('Ваша учетная запись создана! Теперь вы можете войти', 'success')
+        flash('Your account has been created! You can now log in', 'success')
         return redirect(url_for('users.login'))
     return render_template('register.html', title='Регистрация', form=form)
 
@@ -36,8 +41,8 @@ def login():
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('main.home'))
         else:
-            flash('Войти не удалось. Пожалуйста, проверьте адрес электронной почты и пароль', 'danger')
-    return render_template('login.html', title='Войти', form=form)
+            flash('Login failed. Please check your email address and password.', 'danger')
+    return render_template('login.html', title='Login', form=form)
 
 
 @users.route("/logout")
@@ -57,13 +62,13 @@ def account():
         current_user.username = form.username.data
         current_user.email = form.email.data
         db.session.commit()
-        flash('Ваш аккаунт был обновлен!', 'success')
+        flash('Your account has been updated!', 'success')
         return redirect(url_for('users.account'))
     elif request.method == 'GET':
         form.username.data = current_user.username
         form.email.data = current_user.email
     image_file = url_for('static', filename='profile_pics/' + current_user.image_file)
-    return render_template('account.html', title='Аккаунт',
+    return render_template('account.html', title='Account',
                            image_file=image_file, form=form)
 
 
@@ -85,9 +90,9 @@ def reset_request():
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data).first()
         send_reset_email(user)
-        flash('Письмо было отправлено с инструкциями для восстановления пароля.', 'info')
+        flash('An email was sent with instructions for resetting the password.', 'info')
         return redirect(url_for('users.login'))
-    return render_template('reset_request.html', title='Сброс пароля', form=form)
+    return render_template('reset_request.html', title='Password reset', form=form)
 
 
 @users.route("/reset_password/<token>", methods=['GET', 'POST'])
@@ -96,18 +101,62 @@ def reset_token(token):
         return redirect(url_for('main.home'))
     user = User.verify_reset_token(token)
     if user is None:
-        flash('Это недействительный или просроченный токен', 'warning')
+        flash('This is an invalid or expired token', 'warning')
         return redirect(url_for('users.reset_request'))
     form = ResetPasswordForm()
     if form.validate_on_submit():
         hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
         user.password = hashed_password
         db.session.commit()
-        flash('Ваш пароль был обновлен! Теперь вы можете войти', 'success')
+        flash('Your password has been updated! You can now log in', 'success')
         return redirect(url_for('users.login'))
-    return render_template('reset_token.html', title='Сброс пароля', form=form)
+    return render_template('reset_token.html', title='Password reset', form=form)
 
 
-@users.route("/chat")
+@users.route("/chat", methods=['GET', 'POST'])
 def chat():
-    return render_template('chat.html')
+
+    if not current_user.is_authenticated:
+        flash('Please login', 'danger')
+        return redirect(url_for('login'))
+
+    return render_template("chat.html", username=current_user.username, rooms=ROOMS)
+
+
+@socketio.on('incoming-msg')
+def on_message(data):
+    """Broadcast messages"""
+
+    msg = data["msg"]
+    username = data["username"]
+    room = data["room"]
+    # Set timestamp
+    time_stamp = time.strftime('%b-%d %I:%M%p', time.localtime())
+    send({"username": username, "msg": msg, "time_stamp": time_stamp}, room=room)
+
+
+@socketio.on('join')
+def on_join(data):
+    """User joins a room"""
+
+    username = data["username"]
+    room = data["room"]
+    join_room(room)
+
+    # Broadcast that new user has joined
+    send({"msg": username + " has joined the " + room + " room."}, room=room)
+
+
+@socketio.on('leave')
+def on_leave(data):
+    """User leaves a room"""
+
+    username = data['username']
+    room = data['room']
+    leave_room(room)
+    send({"msg": username + " has left the room"}, room=room)
+
+
+
+
+

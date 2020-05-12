@@ -5,7 +5,7 @@ from flask import url_for, current_app
 from flask_mail import Message
 from flaskblog import mail
 
-def save_picture(form_picture):
+def save_picture(photo):
     hash_photo = secrets.token_urlsafe(10)
     _, file_extention = os.path.splitext(photo.filename)
     photo_name = hash_photo + file_extention
